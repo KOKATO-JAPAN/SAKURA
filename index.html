@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>音声タスク追加</title>
+<style>
+  :root{
+    --bg:#0f1420; --card:#1a2233; --line:#2a3650; --txt:#eaf0ff; --sub:#9fb0d0;
+    --accent:#3b82f6; --accent2:#2563eb; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    background:var(--bg);color:var(--txt);padding:16px 14px 40px;max-width:560px;margin:0 auto}
+  h1{font-size:20px;margin:4px 0 14px;display:flex;align-items:center;gap:8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  .mic{width:100%;border:none;border-radius:18px;padding:22px;font-size:20px;font-weight:700;color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));cursor:pointer;transition:.15s;display:flex;
+    align-items:center;justify-content:center;gap:10px}
+  .mic:active{transform:scale(.98)}
+  .mic.rec{background:linear-gradient(135deg,#ef4444,#b91c1c);animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 14px rgba(239,68,68,0)}}
+  textarea{width:100%;background:#0d1322;border:1px solid var(--line);border-radius:12px;color:var(--txt);
+    font-size:17px;padding:12px;min-height:64px;resize:vertical;margin-top:12px}
+  label{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px}
+  .row{display:flex;gap:8px}
+  .row > *{flex:1}
+  input[type=date],input[type=time],input[type=text],input[type=password]{
+    width:100%;background:#0d1322;border:1px solid var(--line);border-radius:10px;color:var(--txt);
+    font-size:16px;padding:11px}
+  .cats{display:flex;flex-wrap:wrap;gap:8px}
+  .cat{flex:1;min-width:80px;text-align:center;padding:11px 6px;border-radius:12px;border:2px solid var(--line);
+    background:#0d1322;color:var(--txt);font-size:14px;cursor:pointer;transition:.12s}
+  .cat.sel{border-color:var(--accent);background:#14213c}
+  .send{width:100%;border:none;border-radius:14px;padding:16px;font-size:18px;font-weight:700;color:#fff;
+    background:var(--ok);cursor:pointer;margin-top:16px}
+  .send:disabled{opacity:.5}
+  .send:active{transform:scale(.99)}
+  .status{font-size:14px;text-align:center;margin-top:12px;min-height:20px}
+  .status.ok{color:var(--ok)} .status.err{color:var(--err)} .status.info{color:var(--sub)}
+  details{margin-top:6px} summary{cursor:pointer;color:var(--sub);font-size:14px;padding:6px 0}
+  .hint{font-size:12px;color:var(--sub);line-height:1.6;margin-top:6px}
+  .log{font-size:13px;color:var(--sub);margin-top:4px}
+  .log div{padding:6px 0;border-bottom:1px solid var(--line)}
+  a{color:var(--accent)}
+  .save{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-size:15px;width:100%;margin-top:10px;cursor:pointer}
+</style>
+</head>
+<body>
+  <h1>🎤 音声タスク追加</h1>
+
+  <div class="card">
+    <button id="mic" class="mic">🎤 話す</button>
+    <textarea id="text" placeholder="ここに話した内容が入ります（手入力もOK）"></textarea>
+
+    <label>カテゴリ</label>
+    <div class="cats" id="cats">
+      <div class="cat" data-cat="緊急">🔴 緊急</div>
+      <div class="cat sel" data-cat="重要">🟠 重要</div>
+      <div class="cat" data-cat="定期">🩵 定期</div>
+      <div class="cat" data-cat="MT">🔵 MT</div>
+      <div class="cat" data-cat="P">💚 P</div>
+    </div>
+
+    <div class="row">
+      <div><label>日付</label><input type="date" id="date"></div>
+      <div><label>時刻(任意)</label><input type="time" id="time"></div>
+    </div>
+    <label>メモ(任意)</label>
+    <input type="text" id="note" placeholder="補足があれば">
+
+    <button id="send" class="send">＋ タスクを追加</button>
+    <div id="status" class="status info"></div>
+  </div>
+
+  <div class="card">
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card">
+    <details id="setup">
+      <summary>⚙️ 初回設定（GitHubの鍵）</summary>
+      <label>GitHubトークン (ghp_... または github_pat_...)</label>
+      <input type="password" id="pat" placeholder="貼り付け">
+      <button class="save" id="savePat">この端末に保存</button>
+      <div class="hint">
+        ・受信箱リポジトリ：<b id="repoName">KOKATO-JAPAN/task-inbox</b><br>
+        ・トークンはこの端末の中だけに保存され、外部には送られません。<br>
+        ・作り方は <a href="#" id="readmeLink">README</a> を参照。<br>
+        ・<b>Fine-grained token</b> を <b>task-inbox</b> リポジトリ限定／Contents: Read and write で発行するのが安全です。
+      </div>
+    </details>
+  </div>
+
+<script>
+const REPO = "KOKATO-JAPAN/task-inbox";
+const FILE = "inbox.json";
+const $ = id => document.getElementById(id);
+
+// ---- localStorage ----
+const getPat = () => localStorage.getItem("ti_pat") || "";
+const setPat = v => localStorage.setItem("ti_pat", v.trim());
+
+// ---- init ----
+(function init(){
+  const d = new Date();
+  $("date").value = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  $("pat").value = getPat();
+  if(!getPat()) $("setup").open = true;
+  $("readmeLink").href = "https://github.com/"+REPO.split("/")[0]+"/SAKURA#readme";
+  renderLog();
+})();
+
+// ---- category select ----
+let cat = "重要";
+$("cats").addEventListener("click", e=>{
+  const el = e.target.closest(".cat"); if(!el) return;
+  [...document.querySelectorAll(".cat")].forEach(c=>c.classList.remove("sel"));
+  el.classList.add("sel"); cat = el.dataset.cat;
+});
+
+// ---- save pat ----
+$("savePat").onclick = ()=>{
+  setPat($("pat").value);
+  setStatus("鍵を保存しました ✓","ok");
+  $("setup").open=false;
+};
+
+// ---- speech ----
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec=null, recording=false;
+if(SR){
+  rec = new SR(); rec.lang="ja-JP"; rec.interimResults=true; rec.continuous=false;
+  rec.onresult = e=>{
+    let t="";
+    for(let i=0;i<e.results.length;i++) t += e.results[i][0].transcript;
+    $("text").value = t;
+  };
+  rec.onerror = e=>{ setStatus("音声認識エラー: "+e.error+"（手入力できます）","err"); stopRec(); };
+  rec.onend = ()=> stopRec();
+}else{
+  $("mic").textContent = "🎤 音声非対応（手入力してください）";
+  $("mic").disabled = true;
+}
+function stopRec(){ recording=false; $("mic").classList.remove("rec"); $("mic").textContent="🎤 話す"; }
+$("mic").onclick = ()=>{
+  if(!rec) return;
+  if(recording){ rec.stop(); return; }
+  $("text").value=""; recording=true;
+  $("mic").classList.add("rec"); $("mic").textContent="● 録音中…（タップで停止）";
+  setStatus("","info");
+  try{ rec.start(); }catch(_){}
+};
+
+// ---- helpers (UTF-8 safe base64) ----
+const b64enc = s => btoa(unescape(encodeURIComponent(s)));
+const b64dec = s => decodeURIComponent(escape(atob(s)));
+function setStatus(msg,cls){ const el=$("status"); el.textContent=msg; el.className="status "+(cls||"info"); }
+
+// ---- submit ----
+$("send").onclick = async ()=>{
+  const name = $("text").value.trim();
+  if(!name){ setStatus("内容が空です","err"); return; }
+  const pat = getPat();
+  if(!pat){ setStatus("先に⚙️初回設定で鍵を保存してください","err"); $("setup").open=true; return; }
+
+  const entry = {
+    eid: Date.now()+"-"+Math.random().toString(36).slice(2,7),
+    ts: new Date().toISOString(),
+    name, cat,
+    date: $("date").value || null,
+    time: $("time").value || null,
+    note: $("note").value.trim() || ""
+  };
+
+  $("send").disabled=true; setStatus("送信中…","info");
+  const url = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
+  const hdr = { "Authorization":"Bearer "+pat, "Accept":"application/vnd.github+json" };
+  try{
+    // 1) read current
+    const g = await fetch(url+"?ref=main&t="+Date.now(), {headers:hdr});
+    if(!g.ok) throw new Error("読込失敗 "+g.status+(g.status===401?" 鍵が無効です":""));
+    const gj = await g.json();
+    let arr=[];
+    try{ arr = JSON.parse(b64dec(gj.content.replace(/\n/g,""))); }catch(_){ arr=[]; }
+    if(!Array.isArray(arr)) arr=[];
+    arr.push(entry);
+    // 2) write back
+    const p = await fetch(url,{method:"PUT",headers:hdr,body:JSON.stringify({
+      message:"voice: "+name.slice(0,40), content:b64enc(JSON.stringify(arr,null,2)), sha:gj.sha, branch:"main"
+    })});
+    if(!p.ok){ const pe=await p.text(); throw new Error("書込失敗 "+p.status+" "+pe.slice(0,80)); }
+    setStatus("追加しました ✓（PCに取り込まれます）","ok");
+    pushLog(entry);
+    $("text").value=""; $("note").value="";
+  }catch(err){
+    setStatus("失敗: "+err.message,"err");
+  }finally{ $("send").disabled=false; }
+};
+
+// ---- local recent log ----
+function pushLog(e){
+  const a = JSON.parse(localStorage.getItem("ti_log")||"[]");
+  a.unshift({name:e.name,cat:e.cat,date:e.date,ts:e.ts});
+  localStorage.setItem("ti_log", JSON.stringify(a.slice(0,8)));
+  renderLog();
+}
+function renderLog(){
+  const a = JSON.parse(localStorage.getItem("ti_log")||"[]");
+  const emo={緊急:"🔴",重要:"🟠",定期:"🩵",MT:"🔵",P:"💚"};
+  $("log").innerHTML = a.length ? "<b>最近追加したタスク</b>"+a.map(x=>
+    `<div>${emo[x.cat]||""} ${x.name} <span style="opacity:.6">${x.date||""}</span></div>`).join("")
+    : "<span style='opacity:.6'>まだ追加履歴はありません</span>";
+}
+</script>
+</body>
+</html>
