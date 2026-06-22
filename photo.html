@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>写真をCチームへ</title>
+<style>
+  :root{
+    --bg:#0f1420; --card:#1a2233; --line:#2a3650; --txt:#eaf0ff; --sub:#9fb0d0;
+    --accent:#3b82f6; --accent2:#2563eb; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    background:var(--bg);color:var(--txt);padding:16px 14px 40px;max-width:560px;margin:0 auto}
+  h1{font-size:20px;margin:4px 0 14px;display:flex;align-items:center;gap:8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  .shoot{width:100%;border:none;border-radius:18px;padding:22px;font-size:20px;font-weight:700;color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));cursor:pointer;transition:.15s;display:flex;
+    align-items:center;justify-content:center;gap:10px}
+  .shoot:active{transform:scale(.98)}
+  #fileInput{display:none}
+  .preview{margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--line);display:none}
+  .preview img{width:100%;display:block}
+  .mic{width:100%;border:none;border-radius:14px;padding:14px;font-size:16px;font-weight:700;color:#fff;
+    background:linear-gradient(135deg,#6366f1,#4f46e5);cursor:pointer;transition:.15s;display:flex;
+    align-items:center;justify-content:center;gap:8px;margin-top:12px}
+  .mic:active{transform:scale(.98)}
+  .mic.rec{background:linear-gradient(135deg,#ef4444,#b91c1c);animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 14px rgba(239,68,68,0)}}
+  textarea{width:100%;background:#0d1322;border:1px solid var(--line);border-radius:12px;color:var(--txt);
+    font-size:17px;padding:12px;min-height:64px;resize:vertical;margin-top:10px}
+  label{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px}
+  .cats{display:flex;flex-wrap:wrap;gap:8px}
+  .cat{flex:1;min-width:72px;text-align:center;padding:11px 6px;border-radius:12px;border:2px solid var(--line);
+    background:#0d1322;color:var(--txt);font-size:14px;cursor:pointer;transition:.12s}
+  .cat.sel{border-color:var(--accent);background:#14213c}
+  .send{width:100%;border:none;border-radius:14px;padding:16px;font-size:18px;font-weight:700;color:#fff;
+    background:var(--ok);cursor:pointer;margin-top:16px}
+  .send:disabled{opacity:.5}
+  .send:active{transform:scale(.99)}
+  .status{font-size:14px;text-align:center;margin-top:12px;min-height:20px}
+  .status.ok{color:var(--ok)} .status.err{color:var(--err)} .status.info{color:var(--sub)}
+  details{margin-top:6px} summary{cursor:pointer;color:var(--sub);font-size:14px;padding:6px 0}
+  .hint{font-size:12px;color:var(--sub);line-height:1.6;margin-top:6px}
+  .log{font-size:13px;color:var(--sub);margin-top:4px}
+  .log div{padding:6px 0;border-bottom:1px solid var(--line)}
+  a{color:var(--accent)}
+  input[type=password]{width:100%;background:#0d1322;border:1px solid var(--line);border-radius:10px;color:var(--txt);font-size:16px;padding:11px}
+  .save{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:11px;font-size:15px;width:100%;margin-top:10px;cursor:pointer}
+  .meta{font-size:12px;color:var(--sub);margin-top:8px;text-align:center}
+</style>
+</head>
+<body>
+  <h1>📷 写真をCチームへ</h1>
+
+  <div class="card">
+    <button id="shoot" class="shoot">📷 撮影 / 写真を選ぶ</button>
+    <input type="file" id="fileInput" accept="image/*" capture="environment">
+    <div class="preview" id="preview"><img id="previewImg" alt=""></div>
+    <div class="meta" id="sizeInfo"></div>
+
+    <button id="mic" class="mic">🎤 コメントを話す</button>
+    <textarea id="comment" placeholder="この写真についてのコメント（話すか手入力。例：「この部品の納期を確認して」「不良が出た、報告まとめて」）"></textarea>
+
+    <label>種類（おまかせでOK）</label>
+    <div class="cats" id="cats">
+      <div class="cat sel" data-kind="auto">🤖 おまかせ</div>
+      <div class="cat" data-kind="memo">📝 手書きメモ</div>
+      <div class="cat" data-kind="form">📄 帳票/FAX</div>
+      <div class="cat" data-kind="defect">⚠️ 不良/現場</div>
+    </div>
+
+    <button id="send" class="send" disabled>＋ Cチームに送る</button>
+    <div id="status" class="status info"></div>
+  </div>
+
+  <div class="card">
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card">
+    <details id="setup">
+      <summary>⚙️ 初回設定（GitHubの鍵）</summary>
+      <label>GitHubトークン (ghp_... または github_pat_...)</label>
+      <input type="password" id="pat" placeholder="貼り付け">
+      <button class="save" id="savePat">この端末に保存</button>
+      <div class="hint">
+        ・受信箱リポジトリ：<b>KOKATO-JAPAN/task-inbox</b>（音声タスクと同じ鍵が使えます）<br>
+        ・トークンはこの端末の中だけに保存され、外部には送られません。<br>
+        ・音声アプリで既に鍵を保存していれば、設定不要でそのまま使えます。
+      </div>
+    </details>
+  </div>
+
+<script>
+const REPO = "KOKATO-JAPAN/task-inbox";
+const MANIFEST = "photo-inbox.json";
+const PHOTO_DIR = "photos";
+const MAX_EDGE = 1600;     // 長辺の最大px
+const JPEG_Q = 0.7;        // JPEG品質
+const $ = id => document.getElementById(id);
+
+// 音声アプリと同じ localStorage キー(ti_pat)を共有
+const getPat = () => localStorage.getItem("ti_pat") || "";
+const setPat = v => localStorage.setItem("ti_pat", v.trim());
+
+let imgB64 = null;   // 送信する画像のbase64(プレフィックス無し)
+
+(function init(){
+  $("pat").value = getPat();
+  if(!getPat()) $("setup").open = true;
+  renderLog();
+})();
+
+// ---- 種類選択 ----
+let kind = "auto";
+$("cats").addEventListener("click", e=>{
+  const el = e.target.closest(".cat"); if(!el) return;
+  [...document.querySelectorAll(".cat")].forEach(c=>c.classList.remove("sel"));
+  el.classList.add("sel"); kind = el.dataset.kind;
+});
+
+// ---- 鍵保存 ----
+$("savePat").onclick = ()=>{
+  setPat($("pat").value);
+  setStatus("鍵を保存しました ✓","ok");
+  $("setup").open=false;
+};
+
+// ---- 撮影 / 選択 ----
+$("shoot").onclick = ()=> $("fileInput").click();
+$("fileInput").onchange = e=>{
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  setStatus("画像を処理中…","info");
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = ()=>{ img.src = reader.result; };
+  img.onload = ()=>{
+    let {width:w, height:h} = img;
+    const scale = Math.min(1, MAX_EDGE/Math.max(w,h));
+    w = Math.round(w*scale); h = Math.round(h*scale);
+    const cv = document.createElement("canvas");
+    cv.width=w; cv.height=h;
+    cv.getContext("2d").drawImage(img,0,0,w,h);
+    const dataURL = cv.toDataURL("image/jpeg", JPEG_Q);
+    imgB64 = dataURL.split(",")[1];
+    $("previewImg").src = dataURL;
+    $("preview").style.display="block";
+    const kb = Math.round(imgB64.length*3/4/1024);
+    $("sizeInfo").textContent = `${w}×${h}px / 約${kb}KB`;
+    $("send").disabled=false;
+    setStatus("コメントを添えて送れます","info");
+  };
+  reader.readAsDataURL(f);
+};
+
+// ---- 音声コメント ----
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec=null, recording=false;
+if(SR){
+  rec = new SR(); rec.lang="ja-JP"; rec.interimResults=true; rec.continuous=false;
+  rec.onresult = e=>{
+    let t="";
+    for(let i=0;i<e.results.length;i++) t += e.results[i][0].transcript;
+    $("comment").value = t;
+  };
+  rec.onerror = e=>{ setStatus("音声認識エラー: "+e.error+"（手入力できます）","err"); stopRec(); };
+  rec.onend = ()=> stopRec();
+}else{
+  $("mic").textContent = "🎤 音声非対応（手入力してください）";
+  $("mic").disabled = true;
+}
+function stopRec(){ recording=false; $("mic").classList.remove("rec"); $("mic").textContent="🎤 コメントを話す"; }
+$("mic").onclick = ()=>{
+  if(!rec) return;
+  if(recording){ rec.stop(); return; }
+  $("comment").value=""; recording=true;
+  $("mic").classList.add("rec"); $("mic").textContent="● 録音中…（タップで停止）";
+  setStatus("","info");
+  try{ rec.start(); }catch(_){}
+};
+
+// ---- helpers ----
+const b64enc = s => btoa(unescape(encodeURIComponent(s)));
+const b64dec = s => decodeURIComponent(escape(atob(s)));
+function setStatus(msg,cls){ const el=$("status"); el.textContent=msg; el.className="status "+(cls||"info"); }
+
+// ---- 送信 ----
+$("send").onclick = async ()=>{
+  if(!imgB64){ setStatus("先に写真を撮ってください","err"); return; }
+  const pat = getPat();
+  if(!pat){ setStatus("先に⚙️初回設定で鍵を保存してください","err"); $("setup").open=true; return; }
+
+  const eid = Date.now()+"-"+Math.random().toString(36).slice(2,7);
+  const path = `${PHOTO_DIR}/${eid}.jpg`;
+  const comment = $("comment").value.trim();
+  const hdr = { "Authorization":"Bearer "+pat, "Accept":"application/vnd.github+json" };
+  const base = `https://api.github.com/repos/${REPO}/contents`;
+
+  $("send").disabled=true; setStatus("送信中…（画像アップロード）","info");
+  try{
+    // 1) 画像ファイルを新規作成
+    const pImg = await fetch(`${base}/${path}`,{method:"PUT",headers:hdr,body:JSON.stringify({
+      message:"photo: "+eid, content:imgB64, branch:"main"
+    })});
+    if(!pImg.ok){ const t=await pImg.text(); throw new Error("画像送信失敗 "+pImg.status+" "+t.slice(0,80)); }
+
+    // 2) マニフェストに追記
+    setStatus("送信中…（受信箱を更新）","info");
+    const entry = { eid, ts:new Date().toISOString(), file:path, comment, kind };
+    const gurl = `${base}/${MANIFEST}`;
+    let arr=[], sha=undefined;
+    const g = await fetch(gurl+"?ref=main&t="+Date.now(), {headers:hdr});
+    if(g.ok){
+      const gj = await g.json(); sha = gj.sha;
+      try{ arr = JSON.parse(b64dec(gj.content.replace(/\n/g,""))); }catch(_){ arr=[]; }
+      if(!Array.isArray(arr)) arr=[];
+    } // 404ならマニフェスト新規作成（sha無し）
+    arr.push(entry);
+    const body = { message:"photo-inbox: +1", content:b64enc(JSON.stringify(arr,null,2)), branch:"main" };
+    if(sha) body.sha = sha;
+    const p = await fetch(gurl,{method:"PUT",headers:hdr,body:JSON.stringify(body)});
+    if(!p.ok){ const pe=await p.text(); throw new Error("受信箱更新失敗 "+p.status+" "+pe.slice(0,80)); }
+
+    setStatus("送りました ✓（Cチームが解析します）","ok");
+    pushLog(entry);
+    // リセット
+    imgB64=null; $("preview").style.display="none"; $("previewImg").src="";
+    $("sizeInfo").textContent=""; $("comment").value=""; $("fileInput").value="";
+    $("send").disabled=true;
+  }catch(err){
+    setStatus("失敗: "+err.message,"err");
+    $("send").disabled=false;
+  }
+};
+
+// ---- 履歴 ----
+function pushLog(e){
+  const a = JSON.parse(localStorage.getItem("photo_log")||"[]");
+  a.unshift({comment:e.comment, kind:e.kind, ts:e.ts});
+  localStorage.setItem("photo_log", JSON.stringify(a.slice(0,8)));
+  renderLog();
+}
+function renderLog(){
+  const a = JSON.parse(localStorage.getItem("photo_log")||"[]");
+  const emo={auto:"🤖",memo:"📝",form:"📄",defect:"⚠️"};
+  $("log").innerHTML = a.length ? "<b>最近送った写真</b>"+a.map(x=>{
+    const t = new Date(x.ts); const hm = String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0");
+    return `<div>${emo[x.kind]||"📷"} ${x.comment||"(コメントなし)"} <span style="opacity:.6">${hm}</span></div>`;
+  }).join("") : "<span style='opacity:.6'>まだ送信履歴はありません</span>";
+}
+</script>
+</body>
+</html>
